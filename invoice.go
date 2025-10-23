@@ -30,7 +30,7 @@ type Invoice struct {
 	Note                  string
 	Lines                 []InvoiceLine
 	PdfInvoiceFilename    string
-	PdfIvoiceData         string
+	PdfInvoiceData        string
 	PdfInvoiceDescription string
 }
 
@@ -135,14 +135,14 @@ func (inv *Invoice) Generate() ([]byte, error) {
 
 	inv.addLines()
 
-	if inv.PdfInvoiceFilename != "" && inv.PdfIvoiceData == "" {
+	if inv.PdfInvoiceFilename != "" && inv.PdfInvoiceData == "" {
 		err := inv.addAttachmentFromFile(inv.PdfInvoiceFilename, "Invoice")
 		if err != nil {
 			return nil, fmt.Errorf("add attachment: %w", err)
 		}
 	}
-	if inv.PdfIvoiceData != "" {
-		err := inv.addAttachmentFromData(inv.PdfIvoiceData, "application/pdf", inv.PdfInvoiceFilename, inv.PdfInvoiceDescription)
+	if inv.PdfInvoiceData != "" {
+		err := inv.addAttachmentFromData(inv.PdfInvoiceData, "application/pdf", inv.PdfInvoiceFilename, inv.PdfInvoiceDescription)
 		if err != nil {
 			return nil, fmt.Errorf("add attachment from data: %w", err)
 		}
