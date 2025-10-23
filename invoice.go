@@ -138,7 +138,7 @@ func (inv *Invoice) Generate() ([]byte, error) {
 	if inv.PdfInvoiceFilename != "" && inv.PdfInvoiceData == "" {
 		err := inv.addAttachmentFromFile(inv.PdfInvoiceFilename, "Invoice")
 		if err != nil {
-			return nil, fmt.Errorf("add attachment: %w", err)
+			return nil, fmt.Errorf("add attachment failed: %w", err)
 		}
 	}
 	if inv.PdfInvoiceData != "" {
