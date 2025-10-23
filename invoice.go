@@ -19,6 +19,8 @@ import (
 type Invoice struct {
 	xml                   *xmlInvoice
 	ID                    string
+	CustomizationID       string
+	ProfileID             string
 	SupplierName          string
 	SupplierVat           string
 	SupplierAddress       Address
@@ -54,8 +56,8 @@ func (inv *Invoice) Generate() ([]byte, error) {
 		Xmlns:            "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
 		Cac:              "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
 		Cbc:              "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
-		CustomizationID:  "urn:cen.eu:en16931:2017#conformant#urn:UBL.BE:1.0.0.20180214",
-		ProfileID:        "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+		CustomizationID:  inv.CustomizationID,
+		ProfileID:        inv.ProfileID,
 		IssueDate:        time.Now().Format("2006-01-02"),
 		DueDate:          time.Now().AddDate(0, 0, 30).Format("2006-01-02"),
 		InvoiceTypeCode:  "380",
