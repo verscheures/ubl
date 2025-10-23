@@ -17,19 +17,21 @@ import (
 )
 
 type Invoice struct {
-	xml                *xmlInvoice
-	ID                 string
-	SupplierName       string
-	SupplierVat        string
-	SupplierAddress    Address
-	CustomerName       string
-	CustomerVat        string
-	CustomerAddress    Address
-	Iban               string
-	Bic                string
-	Note               string
-	Lines              []InvoiceLine
-	PdfInvoiceFilename string
+	xml                   *xmlInvoice
+	ID                    string
+	SupplierName          string
+	SupplierVat           string
+	SupplierAddress       Address
+	CustomerName          string
+	CustomerVat           string
+	CustomerAddress       Address
+	Iban                  string
+	Bic                   string
+	Note                  string
+	Lines                 []InvoiceLine
+	PdfInvoiceFilename    string
+	PdfIvoiceData         string
+	PdfInvoiceDescription string
 }
 
 type InvoiceLine struct {
@@ -48,7 +50,6 @@ type Address struct {
 }
 
 func (inv *Invoice) Generate() ([]byte, error) {
-
 	inv.xml = &xmlInvoice{
 		Xmlns:            "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
 		Cac:              "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
@@ -66,7 +67,6 @@ func (inv *Invoice) Generate() ([]byte, error) {
 	inv.xml.SupplierParty = xmlSupplierParty{
 		Party: xmlParty{
 			EndpointID: xmlEndpointID{
-
 				Value:    inv.SupplierVat[2:],
 				SchemeID: "0208",
 			},
@@ -98,7 +98,6 @@ func (inv *Invoice) Generate() ([]byte, error) {
 	inv.xml.CustomerParty = xmlCustomerParty{
 		Party: xmlParty{
 			EndpointID: xmlEndpointID{
-
 				Value:    inv.CustomerVat[2:],
 				SchemeID: "0208",
 			},
@@ -136,27 +135,35 @@ func (inv *Invoice) Generate() ([]byte, error) {
 
 	inv.addLines()
 
-	if inv.PdfInvoiceFilename != "" {
-		err := inv.addAttachment(inv.PdfInvoiceFilename, "Invoice")
+	if inv.PdfInvoiceFilename != "" && inv.PdfIvoiceData == "" {
+		err := inv.addAttachmentFromFile(inv.PdfInvoiceFilename, "Invoice")
 		if err != nil {
 			return nil, fmt.Errorf("add attachment: %w", err)
 		}
 	}
-
+	if inv.PdfIvoiceData != "" {
+		err := inv.addAttachmentFromData(inv.PdfIvoiceData, "application/pdf", inv.PdfInvoiceFilename, inv.PdfInvoiceDescription)
+		if err != nil {
+			return nil, fmt.Errorf("add attachment from data: %w", err)
+		}
+	}
 	return xml.MarshalIndent(inv.xml, "", "  ")
 }
 
-func (inv *Invoice) addAttachment(filename, description string) error {
-
-	bytes, err := os.ReadFile(filename)
+func (inv *Invoice) addAttachmentFromFile(filename, description string) error {
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
 
-	mime := http.DetectContentType(bytes)
+	mime := http.DetectContentType(data)
+	// using base64 encoding for the embedded binary content
+	encoded := base64.StdEncoding.EncodeToString(data)
 
-	encoded := base64.StdEncoding.EncodeToString(bytes)
+	return inv.addAttachmentFromData(encoded, mime, filename, description)
+}
 
+func (inv *Invoice) addAttachmentFromData(encodedData, mime, filename, description string) error {
 	inv.xml.AdditionalDocumentReference = []xmlDocumentReference{
 		{
 			ID:                  "UBL.BE",
@@ -167,7 +174,7 @@ func (inv *Invoice) addAttachment(filename, description string) error {
 			DocumentDescription: description,
 			Attachment: []xmlAttachment{
 				{xmlEmbeddedDocumentBinaryObject{
-					Value:    encoded,
+					Value:    encodedData,
 					MimeCode: mime,
 					Filename: filename,
 				}},
@@ -176,7 +183,6 @@ func (inv *Invoice) addAttachment(filename, description string) error {
 	}
 
 	return nil
-
 }
 
 func round(amount float64) float64 {
