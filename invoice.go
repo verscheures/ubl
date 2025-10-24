@@ -56,6 +56,7 @@ func (inv *Invoice) Generate() ([]byte, error) {
 		Xmlns:            "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
 		Cac:              "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
 		Cbc:              "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+		Ext:              "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2",
 		CustomizationID:  inv.CustomizationID,
 		ProfileID:        inv.ProfileID,
 		IssueDate:        time.Now().Format("2006-01-02"),
@@ -149,7 +150,11 @@ func (inv *Invoice) Generate() ([]byte, error) {
 			return nil, fmt.Errorf("add attachment from data: %w", err)
 		}
 	}
-	return xml.MarshalIndent(inv.xml, "", "  ")
+	output, err := xml.MarshalIndent(inv.xml, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("xml marshal failed: %w", err)
+	}
+	return []byte(xml.Header + string(output)), nil
 }
 
 func (inv *Invoice) addAttachmentFromFile(filename, description string) error {
