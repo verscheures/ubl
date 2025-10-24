@@ -56,7 +56,6 @@ func (inv *Invoice) Generate() ([]byte, error) {
 		Xmlns:            "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
 		Cac:              "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
 		Cbc:              "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
-		Ext:              "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2",
 		CustomizationID:  inv.CustomizationID,
 		ProfileID:        inv.ProfileID,
 		IssueDate:        time.Now().Format("2006-01-02"),
