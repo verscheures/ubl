@@ -21,12 +21,10 @@ type Invoice struct {
 	ID                    string
 	CustomizationID       string
 	ProfileID             string
-	SupplierPartyID       string
 	SupplierName          string
 	SupplierVat           string
 	SupplierPeppolID      string
 	SupplierAddress       Address
-	CustomerPartyID       string
 	CustomerName          string
 	CustomerVat           string
 	CustomerPeppolID      string
@@ -76,9 +74,6 @@ func (inv *Invoice) Generate() ([]byte, error) {
 				Value:    inv.SupplierPeppolID[5:],
 				SchemeID: inv.SupplierPeppolID[0:4],
 			},
-			PartyIdentification: xmlPartyIdentification{
-				ID: inv.SupplierPartyID,
-			},
 			PartyName:        inv.SupplierName,
 			RegistrationName: inv.SupplierName,
 			PartyTaxScheme: xmlPartyTaxScheme{
@@ -109,9 +104,6 @@ func (inv *Invoice) Generate() ([]byte, error) {
 			EndpointID: xmlEndpointID{
 				Value:    inv.CustomerPeppolID[5:],
 				SchemeID: inv.CustomerPeppolID[0:4],
-			},
-			PartyIdentification: xmlPartyIdentification{
-				ID: inv.CustomerPartyID,
 			},
 			PartyName:        inv.CustomerName,
 			RegistrationName: inv.CustomerName,
