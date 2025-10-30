@@ -21,11 +21,15 @@ type Invoice struct {
 	ID                    string
 	CustomizationID       string
 	ProfileID             string
+	SupplierPartyID       string
 	SupplierName          string
 	SupplierVat           string
+	SupplierPeppolID      string
 	SupplierAddress       Address
+	CustomerPartyID       string
 	CustomerName          string
 	CustomerVat           string
+	CustomerPeppolID      string
 	CustomerAddress       Address
 	Iban                  string
 	Bic                   string
@@ -69,8 +73,11 @@ func (inv *Invoice) Generate() ([]byte, error) {
 	inv.xml.SupplierParty = xmlSupplierParty{
 		Party: xmlParty{
 			EndpointID: xmlEndpointID{
-				Value:    inv.SupplierVat[2:],
-				SchemeID: "0208",
+				Value:    inv.SupplierPeppolID[5:],
+				SchemeID: inv.SupplierPeppolID[0:4],
+			},
+			PartyIdentification: xmlPartyIdentification{
+				ID: inv.SupplierPartyID,
 			},
 			PartyName:        inv.SupplierName,
 			RegistrationName: inv.SupplierName,
@@ -100,8 +107,11 @@ func (inv *Invoice) Generate() ([]byte, error) {
 	inv.xml.CustomerParty = xmlCustomerParty{
 		Party: xmlParty{
 			EndpointID: xmlEndpointID{
-				Value:    inv.CustomerVat[2:],
-				SchemeID: "0208",
+				Value:    inv.CustomerPeppolID[5:],
+				SchemeID: inv.CustomerPeppolID[0:4],
+			},
+			PartyIdentification: xmlPartyIdentification{
+				ID: inv.CustomerPartyID,
 			},
 			PartyName:        inv.CustomerName,
 			RegistrationName: inv.CustomerName,
@@ -113,7 +123,7 @@ func (inv *Invoice) Generate() ([]byte, error) {
 			},
 			PostalAddress: xmlPostalAddress{
 				Country: xmlCountry{
-					IdentificationCode: "BE",
+					IdentificationCode: inv.CustomerAddress.CountryCode,
 				},
 			},
 		},

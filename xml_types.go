@@ -56,11 +56,16 @@ type xmlEndpointID struct {
 }
 
 type xmlParty struct {
-	EndpointID       xmlEndpointID     `xml:"cbc:EndpointID"`
-	PartyName        string            `xml:"cac:PartyName>cbc:Name"`
-	PostalAddress    xmlPostalAddress  `xml:"cac:PostalAddress"`
-	PartyTaxScheme   xmlPartyTaxScheme `xml:"cac:PartyTaxScheme"`
-	RegistrationName string            `xml:"cac:PartyLegalEntity>cbc:RegistrationName"`
+	EndpointID          xmlEndpointID          `xml:"cbc:EndpointID"`
+	PartyIdentification xmlPartyIdentification `xml:"cac:PartyIdentification"`
+	PartyName           string                 `xml:"cac:PartyName>cbc:Name"`
+	PostalAddress       xmlPostalAddress       `xml:"cac:PostalAddress"`
+	PartyTaxScheme      xmlPartyTaxScheme      `xml:"cac:PartyTaxScheme"`
+	RegistrationName    string                 `xml:"cac:PartyLegalEntity>cbc:RegistrationName"`
+}
+
+type xmlPartyIdentification struct {
+	ID string `xml:"cbc:ID"`
 }
 
 type xmlPostalAddress struct {
