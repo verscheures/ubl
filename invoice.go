@@ -204,7 +204,7 @@ func (inv *Invoice) addLines() {
 	for i, line := range inv.Lines {
 		taxPercentage = line.TaxPercentage
 		lineAmountExcl := round(line.Quantity * line.Price)
-		tax := round(lineAmountExcl * 0.21)
+		tax := round(lineAmountExcl * taxPercentage / 100)
 		sum = sum + lineAmountExcl
 		sumTax = sumTax + tax
 		invoiceLine := xmlInvoiceLine{
