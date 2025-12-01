@@ -131,6 +131,7 @@ func (inv *Invoice) Generate() ([]byte, error) {
 		},
 	}
 
+	// Only include PaymentTerms if Note is not empty
 	if inv.Note != "" {
 		inv.xml.PaymentTerms = xmlPaymentTerms{
 			Note: inv.Note,
@@ -220,8 +221,13 @@ func (inv *Invoice) addLines() {
 				TaxAmount: xmlAmount{Value: tax, CurrencyID: "EUR"},
 			},
 			Item: xmlItem{
-				Name:        line.Name,
-				Description: line.Description,
+				Name: line.Name,
+				Description: func() string {
+					if line.Description != "" {
+						return line.Description
+					}
+					return ""
+				}(),
 				ClassifiedTaxCategory: xmlTaxCategory{
 					ID:      "S",
 					Name:    "Standard rated",
