@@ -199,8 +199,8 @@ func round(amount float64) float64 {
 
 func (inv *Invoice) addLines() {
 	sum := 0.0
-	sumTax := 0.0
-	taxPercentage := 21.0
+	sumTax := make(map[float64]float64)         // Map to handle multiple VAT rates
+	taxableAmounts := make(map[float64]float64) // Map to track taxable amounts per VAT rate
 
 	// Iterate over invoice lines to calculate totals
 	for i, line := range inv.Lines {
@@ -209,7 +209,8 @@ func (inv *Invoice) addLines() {
 
 		// Update sums for taxable amounts and taxes
 		sum += lineAmountExcl
-		sumTax += tax
+		sumTax[line.TaxPercentage] += tax
+		taxableAmounts[line.TaxPercentage] += lineAmountExcl
 
 		invoiceLine := xmlInvoiceLine{
 			ID:                  strconv.Itoa(i + 1),
@@ -241,27 +242,36 @@ func (inv *Invoice) addLines() {
 	}
 
 	// Calculate tax subtotals and totals
-	total := round(sum + sumTax)
-
-	inv.xml.TaxTotal = xmlTaxTotal{
-		TaxAmount: xmlAmount{Value: sumTax, CurrencyID: "EUR"},
-		TaxSubtotal: []xmlTaxSubtotal{
-			{
-				TaxableAmount: xmlAmount{
-					Value:      sum,
-					CurrencyID: "EUR",
-				},
-				TaxAmount: xmlAmount{Value: sumTax, CurrencyID: "EUR"},
-				TaxCategory: xmlTaxCategory{
-					ID:      "S",
-					Name:    "Standard rated",
-					Percent: taxPercentage,
-					TaxScheme: xmlTaxScheme{
-						ID: "VAT",
-					},
+	taxSubtotals := []xmlTaxSubtotal{}
+	totalTax := 0.0
+	for rate, taxAmount := range sumTax {
+		taxableAmount := taxableAmounts[rate]
+		taxSubtotals = append(taxSubtotals, xmlTaxSubtotal{
+			TaxableAmount: xmlAmount{
+				Value:      taxableAmount,
+				CurrencyID: "EUR",
+			},
+			TaxAmount: xmlAmount{
+				Value:      taxAmount,
+				CurrencyID: "EUR",
+			},
+			TaxCategory: xmlTaxCategory{
+				ID:      "S",
+				Name:    "Standard rated",
+				Percent: rate,
+				TaxScheme: xmlTaxScheme{
+					ID: "VAT",
 				},
 			},
-		},
+		})
+		totalTax += taxAmount
+	}
+
+	total := round(sum + totalTax)
+
+	inv.xml.TaxTotal = xmlTaxTotal{
+		TaxAmount:   xmlAmount{Value: totalTax, CurrencyID: "EUR"},
+		TaxSubtotal: taxSubtotals,
 	}
 
 	inv.xml.LegalMonetaryTotal = xmlMonetaryTotal{
