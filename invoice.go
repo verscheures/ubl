@@ -319,7 +319,6 @@ type xmlCreditNote struct {
 	ProfileID                   string                 `xml:"cbc:ProfileID"`
 	ID                          string                 `xml:"cbc:ID"`
 	IssueDate                   string                 `xml:"cbc:IssueDate"`
-	DueDate                     string                 `xml:"cbc:DueDate"`
 	CreditNoteTypeCode          string                 `xml:"cbc:CreditNoteTypeCode"`
 	DocumentCurrency            string                 `xml:"cbc:DocumentCurrencyCode"`
 	OrderReference              string                 `xml:"cac:OrderReference>cbc:ID"`
@@ -348,11 +347,10 @@ func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
 		Cbc:                "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
 		CustomizationID:    cn.CustomizationID,
 		ProfileID:          cn.ProfileID,
+		ID:                 cn.ID,
 		IssueDate:          time.Now().Format("2006-01-02"),
-		DueDate:            time.Now().AddDate(0, 0, 30).Format("2006-01-02"),
 		CreditNoteTypeCode: "381",
 		DocumentCurrency:   "EUR",
-		ID:                 cn.ID,
 		OrderReference:     cn.ID,
 	}
 
