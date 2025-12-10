@@ -287,3 +287,283 @@ func (inv *Invoice) addLines() {
 		PayableAmount:       xmlAmount{Value: total, CurrencyID: "EUR"},
 	}
 }
+
+type CreditNote struct {
+	xml                      *xmlCreditNote
+	ID                       string
+	CustomizationID          string
+	ProfileID                string
+	SupplierName             string
+	SupplierVat              string
+	SupplierPeppolID         string
+	SupplierAddress          Address
+	CustomerName             string
+	CustomerVat              string
+	CustomerPeppolID         string
+	CustomerAddress          Address
+	Iban                     string
+	Bic                      string
+	Note                     string
+	Lines                    []InvoiceLine
+	PdfCreditNoteFilename    string
+	PdfCreditNoteData        string
+	PdfCreditNoteDescription string
+}
+
+type xmlCreditNote struct {
+	Xmlns                       string                 `xml:"xmlns,attr"`
+	Cac                         string                 `xml:"xmlns:cac,attr"`
+	Cbc                         string                 `xml:"xmlns:cbc,attr"`
+	CustomizationID             string                 `xml:"cbc:CustomizationID"`
+	ProfileID                   string                 `xml:"cbc:ProfileID"`
+	IssueDate                   string                 `xml:"cbc:IssueDate"`
+	DueDate                     string                 `xml:"cbc:DueDate"`
+	CreditNoteTypeCode          string                 `xml:"cbc:CreditNoteTypeCode"`
+	DocumentCurrency            string                 `xml:"cbc:DocumentCurrencyCode"`
+	ID                          string                 `xml:"cbc:ID"`
+	OrderReference              string                 `xml:"cac:OrderReference>cbc:ID"`
+	SupplierParty               xmlSupplierParty       `xml:"cac:AccountingSupplierParty"`
+	CustomerParty               xmlCustomerParty       `xml:"cac:AccountingCustomerParty"`
+	PaymentMeans                xmlPaymentMeans        `xml:"cac:PaymentMeans"`
+	PaymentTerms                xmlPaymentTerms        `xml:"cac:PaymentTerms,omitempty"`
+	CreditNoteLines             []xmlCreditNoteLine    `xml:"cac:CreditNoteLine"`
+	AdditionalDocumentReference []xmlDocumentReference `xml:"cac:AdditionalDocumentReference,omitempty"`
+	TaxTotal                    xmlTaxTotal            `xml:"cac:TaxTotal"`
+	LegalMonetaryTotal          xmlMonetaryTotal       `xml:"cac:LegalMonetaryTotal"`
+}
+
+type xmlCreditNoteLine struct {
+	ID          string   `xml:"cbc:ID"`
+	CreditedQty float64  `xml:"cbc:CreditedQuantity"`
+	LineExtAmt  float64  `xml:"cbc:LineExtensionAmount"`
+	Item        xmlItem  `xml:"cac:Item"`
+	Price       xmlPrice `xml:"cac:Price"`
+}
+
+func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
+	cn.xml = &xmlCreditNote{
+		Xmlns:              "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2",
+		Cac:                "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
+		Cbc:                "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+		CustomizationID:    cn.CustomizationID,
+		ProfileID:          cn.ProfileID,
+		IssueDate:          time.Now().Format("2006-01-02"),
+		DueDate:            time.Now().AddDate(0, 0, 30).Format("2006-01-02"),
+		CreditNoteTypeCode: "381",
+		DocumentCurrency:   "EUR",
+		ID:                 cn.ID,
+		OrderReference:     cn.ID,
+	}
+
+	cn.xml.SupplierParty = xmlSupplierParty{
+		Party: xmlParty{
+			EndpointID: xmlEndpointID{
+				Value:    cn.SupplierPeppolID[5:],
+				SchemeID: cn.SupplierPeppolID[0:4],
+			},
+			PartyName:        cn.SupplierName,
+			RegistrationName: cn.SupplierName,
+			PartyTaxScheme: xmlPartyTaxScheme{
+				CompanyID: cn.SupplierVat,
+				TaxScheme: xmlTaxScheme{
+					ID: "VAT",
+				},
+			},
+		},
+	}
+
+	cn.xml.SupplierParty.Party.PostalAddress = xmlPostalAddress{
+		StreetName: cn.SupplierAddress.StreetName,
+		CityName:   cn.SupplierAddress.CityName,
+		PostalZone: cn.SupplierAddress.PostalZone,
+		Country:    xmlCountry{IdentificationCode: cn.SupplierAddress.CountryCode},
+	}
+
+	cn.xml.CustomerParty.Party.PostalAddress = xmlPostalAddress{
+		StreetName: cn.CustomerAddress.StreetName,
+		CityName:   cn.CustomerAddress.CityName,
+		PostalZone: cn.CustomerAddress.PostalZone,
+		Country:    xmlCountry{IdentificationCode: cn.CustomerAddress.CountryCode},
+	}
+
+	cn.xml.CustomerParty = xmlCustomerParty{
+		Party: xmlParty{
+			EndpointID: xmlEndpointID{
+				Value:    cn.CustomerPeppolID[5:],
+				SchemeID: cn.CustomerPeppolID[0:4],
+			},
+			PartyName:        cn.CustomerName,
+			RegistrationName: cn.CustomerName,
+			PartyTaxScheme: xmlPartyTaxScheme{
+				CompanyID: cn.CustomerVat,
+				TaxScheme: xmlTaxScheme{
+					ID: "VAT",
+				},
+			},
+			PostalAddress: xmlPostalAddress{
+				Country: xmlCountry{
+					IdentificationCode: cn.CustomerAddress.CountryCode,
+				},
+			},
+		},
+	}
+
+	cn.xml.PaymentMeans = xmlPaymentMeans{
+		PaymentMeansCode: "1",
+		PayeeFinancialAccount: xmlFinancialAccount{
+			ID: cn.Iban,
+			FinancialInstitutionBranch: xmlFinancialInstitutionBranch{
+				ID: cn.Bic,
+			},
+		},
+	}
+
+	// Ensure PaymentTerms is only included if Note is not empty
+	if cn.Note != "" {
+		cn.xml.PaymentTerms = xmlPaymentTerms{
+			Note: cn.Note,
+		}
+	}
+
+	cn.addLines()
+
+	if cn.PdfCreditNoteFilename != "" && cn.PdfCreditNoteData == "" {
+		err := cn.addAttachmentFromFile(cn.PdfCreditNoteFilename, "CreditNote")
+		if err != nil {
+			return nil, fmt.Errorf("add attachment failed: %w", err)
+		}
+	}
+	if cn.PdfCreditNoteData != "" {
+		err := cn.addAttachmentFromData(cn.PdfCreditNoteData, "application/pdf", cn.PdfCreditNoteFilename, cn.PdfCreditNoteDescription)
+		if err != nil {
+			return nil, fmt.Errorf("add attachment from data: %w", err)
+		}
+	}
+	output, err := xml.MarshalIndent(cn.xml, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("xml marshal failed: %w", err)
+	}
+	return []byte(xml.Header + string(output)), nil
+}
+
+func (cn *CreditNote) addAttachmentFromFile(filename, description string) error {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	mime := http.DetectContentType(data)
+	// using base64 encoding for the embedded binary content
+	encoded := base64.StdEncoding.EncodeToString(data)
+
+	return cn.addAttachmentFromData(encoded, mime, filename, description)
+}
+
+func (cn *CreditNote) addAttachmentFromData(encodedData, mime, filename, description string) error {
+	cn.xml.AdditionalDocumentReference = []xmlDocumentReference{
+		{
+			ID:                  "UBL.BE",
+			DocumentDescription: "CommercialInvoice",
+		},
+		{
+			ID:                  cn.ID,
+			DocumentDescription: description,
+			Attachment: []xmlAttachment{
+				{xmlEmbeddedDocumentBinaryObject{
+					Value:    encodedData,
+					MimeCode: mime,
+					Filename: filename,
+				}},
+			},
+		},
+	}
+
+	return nil
+}
+
+func (cn *CreditNote) addLines() {
+	sum := 0.0
+	sumTax := make(map[float64]float64)         // Map to handle multiple VAT rates
+	taxableAmounts := make(map[float64]float64) // Map to track taxable amounts per VAT rate
+
+	// Iterate over invoice lines to calculate totals
+	for i, line := range cn.Lines {
+		lineAmountExcl := round(line.Quantity * line.Price)
+		tax := round(lineAmountExcl * line.TaxPercentage / 100)
+
+		// Update sums for taxable amounts and taxes
+		sum += lineAmountExcl
+		sumTax[line.TaxPercentage] += tax
+		taxableAmounts[line.TaxPercentage] += lineAmountExcl
+
+		invoiceLine := xmlCreditNoteLine{
+			ID:          strconv.Itoa(i + 1),
+			CreditedQty: line.Quantity,
+			LineExtAmt:  lineAmountExcl,
+			Item: xmlItem{
+				Name: line.Name,
+				Description: func() string {
+					if line.Description != "" {
+						return line.Description
+					}
+					return ""
+				}(),
+				ClassifiedTaxCategory: xmlTaxCategory{
+					ID:      "S",
+					Name:    "Standard rated",
+					Percent: line.TaxPercentage,
+					TaxScheme: xmlTaxScheme{
+						ID: "VAT",
+					},
+				},
+			},
+			Price: xmlPrice{
+				PriceAmount: xmlAmount{
+					Value:      line.Price,
+					CurrencyID: "EUR",
+				},
+			},
+		}
+		cn.xml.CreditNoteLines = append(cn.xml.CreditNoteLines, invoiceLine)
+	}
+
+	// Calculate tax subtotals and totals
+	taxSubtotals := []xmlTaxSubtotal{}
+	totalTax := 0.0
+	for rate, taxAmount := range sumTax {
+		taxableAmount := taxableAmounts[rate]
+		taxSubtotals = append(taxSubtotals, xmlTaxSubtotal{
+			TaxableAmount: xmlAmount{
+				Value:      taxableAmount,
+				CurrencyID: "EUR",
+			},
+			TaxAmount: xmlAmount{
+				Value:      taxAmount,
+				CurrencyID: "EUR",
+			},
+			TaxCategory: xmlTaxCategory{
+				ID:      "S",
+				Name:    "Standard rated",
+				Percent: rate,
+				TaxScheme: xmlTaxScheme{
+					ID: "VAT",
+				},
+			},
+		})
+		totalTax += taxAmount
+	}
+
+	total := round(sum + totalTax)
+
+	cn.xml.TaxTotal = xmlTaxTotal{
+		TaxAmount:   xmlAmount{Value: totalTax, CurrencyID: "EUR"},
+		TaxSubtotal: taxSubtotals,
+	}
+
+	cn.xml.LegalMonetaryTotal = xmlMonetaryTotal{
+		LineExtensionAmount: xmlAmount{Value: sum, CurrencyID: "EUR"},
+		TaxExclusiveAmount:  xmlAmount{Value: sum, CurrencyID: "EUR"},
+		TaxInclusiveAmount:  xmlAmount{Value: total, CurrencyID: "EUR"},
+		PayableAmount:       xmlAmount{Value: total, CurrencyID: "EUR"},
+	}
+}
