@@ -322,14 +322,14 @@ type xmlCreditNote struct {
 	CreditNoteTypeCode          string                 `xml:"cbc:CreditNoteTypeCode"`
 	DocumentCurrency            string                 `xml:"cbc:DocumentCurrencyCode"`
 	OrderReference              string                 `xml:"cac:OrderReference>cbc:ID"`
+	AdditionalDocumentReference []xmlDocumentReference `xml:"cac:AdditionalDocumentReference,omitempty"`
 	SupplierParty               xmlSupplierParty       `xml:"cac:AccountingSupplierParty"`
 	CustomerParty               xmlCustomerParty       `xml:"cac:AccountingCustomerParty"`
 	PaymentMeans                xmlPaymentMeans        `xml:"cac:PaymentMeans"`
 	PaymentTerms                xmlPaymentTerms        `xml:"cac:PaymentTerms,omitempty"`
-	CreditNoteLines             []xmlCreditNoteLine    `xml:"cac:CreditNoteLine"`
-	AdditionalDocumentReference []xmlDocumentReference `xml:"cac:AdditionalDocumentReference,omitempty"`
 	TaxTotal                    xmlTaxTotal            `xml:"cac:TaxTotal"`
 	LegalMonetaryTotal          xmlMonetaryTotal       `xml:"cac:LegalMonetaryTotal"`
+	CreditNoteLines             []xmlCreditNoteLine    `xml:"cac:CreditNoteLine"`
 }
 
 type xmlCreditNoteLine struct {
