@@ -317,11 +317,11 @@ type xmlCreditNote struct {
 	Cbc                         string                 `xml:"xmlns:cbc,attr"`
 	CustomizationID             string                 `xml:"cbc:CustomizationID"`
 	ProfileID                   string                 `xml:"cbc:ProfileID"`
+	ID                          string                 `xml:"cbc:ID"`
 	IssueDate                   string                 `xml:"cbc:IssueDate"`
 	DueDate                     string                 `xml:"cbc:DueDate"`
 	CreditNoteTypeCode          string                 `xml:"cbc:CreditNoteTypeCode"`
 	DocumentCurrency            string                 `xml:"cbc:DocumentCurrencyCode"`
-	ID                          string                 `xml:"cbc:ID"`
 	OrderReference              string                 `xml:"cac:OrderReference>cbc:ID"`
 	SupplierParty               xmlSupplierParty       `xml:"cac:AccountingSupplierParty"`
 	CustomerParty               xmlCustomerParty       `xml:"cac:AccountingCustomerParty"`
