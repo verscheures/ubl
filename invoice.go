@@ -311,6 +311,7 @@ type CreditNote struct {
 }
 
 type xmlCreditNote struct {
+	XMLName                     xml.Name               `xml:"CreditNote"`
 	Xmlns                       string                 `xml:"xmlns,attr"`
 	Cac                         string                 `xml:"xmlns:cac,attr"`
 	Cbc                         string                 `xml:"xmlns:cbc,attr"`
@@ -333,11 +334,11 @@ type xmlCreditNote struct {
 }
 
 type xmlCreditNoteLine struct {
-	ID          string   `xml:"cbc:ID"`
-	CreditedQty float64  `xml:"cbc:CreditedQuantity"`
-	LineExtAmt  float64  `xml:"cbc:LineExtensionAmount"`
-	Item        xmlItem  `xml:"cac:Item"`
-	Price       xmlPrice `xml:"cac:Price"`
+	ID                  string      `xml:"cbc:ID"`
+	CreditedQuantity    xmlQuantity `xml:"cbc:CreditedQuantity"`
+	LineExtensionAmount xmlAmount   `xml:"cbc:LineExtensionAmount"`
+	Item                xmlItem     `xml:"cac:Item"`
+	Price               xmlPrice    `xml:"cac:Price"`
 }
 
 func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
@@ -497,9 +498,9 @@ func (cn *CreditNote) addLines() {
 		taxableAmounts[line.TaxPercentage] += lineAmountExcl
 
 		invoiceLine := xmlCreditNoteLine{
-			ID:          strconv.Itoa(i + 1),
-			CreditedQty: line.Quantity,
-			LineExtAmt:  lineAmountExcl,
+			ID:                  strconv.Itoa(i + 1),
+			CreditedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
+			LineExtensionAmount: xmlAmount{Value: lineAmountExcl, CurrencyID: "EUR"},
 			Item: xmlItem{
 				Name: line.Name,
 				Description: func() string {
