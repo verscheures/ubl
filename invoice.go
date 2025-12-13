@@ -219,13 +219,24 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 	for _, line := range lines {
 		lineAmount := round(line.Quantity * line.Price)
 		tax := round(lineAmount * line.TaxPercentage / 100)
-		key := taxKey{Rate: line.TaxPercentage, CategoryID: line.TaxCategoryID}
+
+		// Default to "S" (Standard rated) if not specified
+		categoryID := line.TaxCategoryID
+		if categoryID == "" {
+			categoryID = "S"
+		}
+		categoryName := line.TaxCategoryName
+		if categoryName == "" {
+			categoryName = "Standard rated"
+		}
+
+		key := taxKey{Rate: line.TaxPercentage, CategoryID: categoryID}
 
 		lineTotal += lineAmount
 		taxTotal += tax
 
 		if summaries[key] == nil {
-			summaries[key] = &taxSummary{key: key, catName: line.TaxCategoryName}
+			summaries[key] = &taxSummary{key: key, catName: categoryName}
 		}
 		summaries[key].taxable += lineAmount
 		summaries[key].tax += tax
@@ -252,6 +263,16 @@ func (inv *Invoice) addLines() {
 		lineAmount := round(line.Quantity * line.Price)
 		tax := round(lineAmount * line.TaxPercentage / 100)
 
+		// Default to "S" (Standard rated) if not specified
+		categoryID := line.TaxCategoryID
+		if categoryID == "" {
+			categoryID = "S"
+		}
+		categoryName := line.TaxCategoryName
+		if categoryName == "" {
+			categoryName = "Standard rated"
+		}
+
 		inv.xml.InvoiceLines = append(inv.xml.InvoiceLines, xmlInvoiceLine{
 			ID:                  strconv.Itoa(i + 1),
 			InvoicedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
@@ -261,8 +282,8 @@ func (inv *Invoice) addLines() {
 				Name:        line.Name,
 				Description: line.Description,
 				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:        line.TaxCategoryID,
-					Name:      line.TaxCategoryName,
+					ID:        categoryID,
+					Name:      categoryName,
 					Percent:   line.TaxPercentage,
 					TaxScheme: xmlTaxScheme{ID: "VAT"},
 				},
@@ -483,6 +504,16 @@ func (cn *CreditNote) addLines() {
 	for i, line := range cn.Lines {
 		lineAmount := round(line.Quantity * line.Price)
 
+		// Default to "S" (Standard rated) if not specified
+		categoryID := line.TaxCategoryID
+		if categoryID == "" {
+			categoryID = "S"
+		}
+		categoryName := line.TaxCategoryName
+		if categoryName == "" {
+			categoryName = "Standard rated"
+		}
+
 		cn.xml.CreditNoteLines = append(cn.xml.CreditNoteLines, xmlCreditNoteLine{
 			ID:                  strconv.Itoa(i + 1),
 			CreditedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
@@ -491,8 +522,8 @@ func (cn *CreditNote) addLines() {
 				Name:        line.Name,
 				Description: line.Description,
 				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:        line.TaxCategoryID,
-					Name:      line.TaxCategoryName,
+					ID:        categoryID,
+					Name:      categoryName,
 					Percent:   line.TaxPercentage,
 					TaxScheme: xmlTaxScheme{ID: "VAT"},
 				},
