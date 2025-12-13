@@ -39,11 +39,19 @@ type Invoice struct {
 }
 
 type InvoiceLine struct {
-	Quantity      float64
-	Price         float64
-	TaxPercentage float64
-	Name          string
-	Description   string
+	Quantity        float64
+	Price           float64
+	TaxPercentage   float64
+	TaxCategoryID   string
+	TaxCategoryName string
+
+	Name        string
+	Description string
+}
+
+type taxKey struct {
+	Rate       float64
+	CategoryID string
 }
 
 type Address struct {
@@ -200,18 +208,23 @@ func round(amount float64) float64 {
 
 func (inv *Invoice) addLines() {
 	sum := 0.0
-	sumTax := make(map[float64]float64)         // Map to handle multiple VAT rates
-	taxableAmounts := make(map[float64]float64) // Map to track taxable amounts per VAT rate
+	sumTax := make(map[taxKey]float64)         // Map to handle multiple VAT rates and categories
+	taxableAmounts := make(map[taxKey]float64) // Map to track taxable amounts per VAT rate and category
+	lineTaxCategory := make(map[taxKey]string) // Map to store tax category names
 
 	// Iterate over invoice lines to calculate totals
 	for i, line := range inv.Lines {
 		lineAmountExcl := round(line.Quantity * line.Price)
 		tax := round(lineAmountExcl * line.TaxPercentage / 100)
 
+		// Create composite key for rate and category
+		key := taxKey{Rate: line.TaxPercentage, CategoryID: line.TaxCategoryID}
+
 		// Update sums for taxable amounts and taxes
 		sum += lineAmountExcl
-		sumTax[line.TaxPercentage] += tax
-		taxableAmounts[line.TaxPercentage] += lineAmountExcl
+		sumTax[key] += tax
+		taxableAmounts[key] += lineAmountExcl
+		lineTaxCategory[key] = line.TaxCategoryName
 
 		invoiceLine := xmlInvoiceLine{
 			ID:                  strconv.Itoa(i + 1),
@@ -229,8 +242,8 @@ func (inv *Invoice) addLines() {
 					return ""
 				}(),
 				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:      "S",
-					Name:    "Standard rated",
+					ID:      line.TaxCategoryID,
+					Name:    line.TaxCategoryName,
 					Percent: line.TaxPercentage,
 					TaxScheme: xmlTaxScheme{
 						ID: "VAT",
@@ -250,8 +263,8 @@ func (inv *Invoice) addLines() {
 	// Calculate tax subtotals and totals
 	taxSubtotals := []xmlTaxSubtotal{}
 	totalTax := 0.0
-	for rate, taxAmount := range sumTax {
-		taxableAmount := taxableAmounts[rate]
+	for key, taxAmount := range sumTax {
+		taxableAmount := taxableAmounts[key]
 		taxSubtotals = append(taxSubtotals, xmlTaxSubtotal{
 			TaxableAmount: xmlAmount{
 				Value:      taxableAmount,
@@ -262,9 +275,9 @@ func (inv *Invoice) addLines() {
 				CurrencyID: "EUR",
 			},
 			TaxCategory: xmlTaxCategory{
-				ID:      "S",
-				Name:    "Standard rated",
-				Percent: rate,
+				ID:      key.CategoryID,
+				Name:    lineTaxCategory[key],
+				Percent: key.Rate,
 				TaxScheme: xmlTaxScheme{
 					ID: "VAT",
 				},
@@ -482,18 +495,23 @@ func (cn *CreditNote) addAttachmentFromData(encodedData, mime, filename, descrip
 
 func (cn *CreditNote) addLines() {
 	sum := 0.0
-	sumTax := make(map[float64]float64)         // Map to handle multiple VAT rates
-	taxableAmounts := make(map[float64]float64) // Map to track taxable amounts per VAT rate
+	sumTax := make(map[taxKey]float64)         // Map to handle multiple VAT rates and categories
+	taxableAmounts := make(map[taxKey]float64) // Map to track taxable amounts per VAT rate and category
+	lineTaxCategory := make(map[taxKey]string) // Map to store tax category names
 
 	// Iterate over invoice lines to calculate totals
 	for i, line := range cn.Lines {
 		lineAmountExcl := round(line.Quantity * line.Price)
 		tax := round(lineAmountExcl * line.TaxPercentage / 100)
 
+		// Create composite key for rate and category
+		key := taxKey{Rate: line.TaxPercentage, CategoryID: line.TaxCategoryID}
+
 		// Update sums for taxable amounts and taxes
 		sum += lineAmountExcl
-		sumTax[line.TaxPercentage] += tax
-		taxableAmounts[line.TaxPercentage] += lineAmountExcl
+		sumTax[key] += tax
+		taxableAmounts[key] += lineAmountExcl
+		lineTaxCategory[key] = line.TaxCategoryName
 
 		invoiceLine := xmlCreditNoteLine{
 			ID:                  strconv.Itoa(i + 1),
@@ -529,8 +547,8 @@ func (cn *CreditNote) addLines() {
 	// Calculate tax subtotals and totals
 	taxSubtotals := []xmlTaxSubtotal{}
 	totalTax := 0.0
-	for rate, taxAmount := range sumTax {
-		taxableAmount := taxableAmounts[rate]
+	for key, taxAmount := range sumTax {
+		taxableAmount := taxableAmounts[key]
 		taxSubtotals = append(taxSubtotals, xmlTaxSubtotal{
 			TaxableAmount: xmlAmount{
 				Value:      taxableAmount,
@@ -541,9 +559,9 @@ func (cn *CreditNote) addLines() {
 				CurrencyID: "EUR",
 			},
 			TaxCategory: xmlTaxCategory{
-				ID:      "S",
-				Name:    "Standard rated",
-				Percent: rate,
+				ID:      key.CategoryID,
+				Name:    lineTaxCategory[key],
+				Percent: key.Rate,
 				TaxScheme: xmlTaxScheme{
 					ID: "VAT",
 				},
