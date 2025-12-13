@@ -206,96 +206,82 @@ func round(amount float64) float64 {
 	return math.Round(amount*100) / 100
 }
 
-func (inv *Invoice) addLines() {
-	sum := 0.0
-	sumTax := make(map[taxKey]float64)         // Map to handle multiple VAT rates and categories
-	taxableAmounts := make(map[taxKey]float64) // Map to track taxable amounts per VAT rate and category
-	lineTaxCategory := make(map[taxKey]string) // Map to store tax category names
+type taxSummary struct {
+	key     taxKey
+	taxable float64
+	tax     float64
+	catName string
+}
 
-	// Iterate over invoice lines to calculate totals
-	for i, line := range inv.Lines {
-		lineAmountExcl := round(line.Quantity * line.Price)
-		tax := round(lineAmountExcl * line.TaxPercentage / 100)
+func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float64, subtotals []xmlTaxSubtotal) {
+	summaries := make(map[taxKey]*taxSummary)
 
-		// Create composite key for rate and category
+	for _, line := range lines {
+		lineAmount := round(line.Quantity * line.Price)
+		tax := round(lineAmount * line.TaxPercentage / 100)
 		key := taxKey{Rate: line.TaxPercentage, CategoryID: line.TaxCategoryID}
 
-		// Update sums for taxable amounts and taxes
-		sum += lineAmountExcl
-		sumTax[key] += tax
-		taxableAmounts[key] += lineAmountExcl
-		lineTaxCategory[key] = line.TaxCategoryName
+		lineTotal += lineAmount
+		taxTotal += tax
 
-		invoiceLine := xmlInvoiceLine{
-			ID:                  strconv.Itoa(i + 1),
-			InvoicedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
-			LineExtensionAmount: xmlAmount{Value: lineAmountExcl, CurrencyID: "EUR"},
-			TaxTotal: xmlTaxTotal{
-				TaxAmount: xmlAmount{Value: tax, CurrencyID: "EUR"},
-			},
-			Item: xmlItem{
-				Name: line.Name,
-				Description: func() string {
-					if line.Description != "" {
-						return line.Description
-					}
-					return ""
-				}(),
-				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:      line.TaxCategoryID,
-					Name:    line.TaxCategoryName,
-					Percent: line.TaxPercentage,
-					TaxScheme: xmlTaxScheme{
-						ID: "VAT",
-					},
-				},
-			},
-			Price: xmlPrice{
-				PriceAmount: xmlAmount{
-					Value:      line.Price,
-					CurrencyID: "EUR",
-				},
-			},
+		if summaries[key] == nil {
+			summaries[key] = &taxSummary{key: key, catName: line.TaxCategoryName}
 		}
-		inv.xml.InvoiceLines = append(inv.xml.InvoiceLines, invoiceLine)
+		summaries[key].taxable += lineAmount
+		summaries[key].tax += tax
 	}
 
-	// Calculate tax subtotals and totals
-	taxSubtotals := []xmlTaxSubtotal{}
-	totalTax := 0.0
-	for key, taxAmount := range sumTax {
-		taxableAmount := taxableAmounts[key]
-		taxSubtotals = append(taxSubtotals, xmlTaxSubtotal{
-			TaxableAmount: xmlAmount{
-				Value:      taxableAmount,
-				CurrencyID: "EUR",
-			},
-			TaxAmount: xmlAmount{
-				Value:      taxAmount,
-				CurrencyID: "EUR",
-			},
+	for _, summary := range summaries {
+		subtotals = append(subtotals, xmlTaxSubtotal{
+			TaxableAmount: xmlAmount{Value: summary.taxable, CurrencyID: "EUR"},
+			TaxAmount:     xmlAmount{Value: summary.tax, CurrencyID: "EUR"},
 			TaxCategory: xmlTaxCategory{
-				ID:      key.CategoryID,
-				Name:    lineTaxCategory[key],
-				Percent: key.Rate,
-				TaxScheme: xmlTaxScheme{
-					ID: "VAT",
-				},
+				ID:        summary.key.CategoryID,
+				Name:      summary.catName,
+				Percent:   summary.key.Rate,
+				TaxScheme: xmlTaxScheme{ID: "VAT"},
 			},
 		})
-		totalTax += taxAmount
 	}
 
-	total := round(sum + totalTax)
+	return
+}
+
+func (inv *Invoice) addLines() {
+	for i, line := range inv.Lines {
+		lineAmount := round(line.Quantity * line.Price)
+		tax := round(lineAmount * line.TaxPercentage / 100)
+
+		inv.xml.InvoiceLines = append(inv.xml.InvoiceLines, xmlInvoiceLine{
+			ID:                  strconv.Itoa(i + 1),
+			InvoicedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
+			LineExtensionAmount: xmlAmount{Value: lineAmount, CurrencyID: "EUR"},
+			TaxTotal:            xmlTaxTotal{TaxAmount: xmlAmount{Value: tax, CurrencyID: "EUR"}},
+			Item: xmlItem{
+				Name:        line.Name,
+				Description: line.Description,
+				ClassifiedTaxCategory: xmlTaxCategory{
+					ID:        line.TaxCategoryID,
+					Name:      line.TaxCategoryName,
+					Percent:   line.TaxPercentage,
+					TaxScheme: xmlTaxScheme{ID: "VAT"},
+				},
+			},
+			Price: xmlPrice{PriceAmount: xmlAmount{Value: line.Price, CurrencyID: "EUR"}},
+		})
+	}
+
+	lineTotal, taxTotal, subtotals := calculateTaxTotals(inv.Lines)
+	total := round(lineTotal + taxTotal)
 
 	inv.xml.TaxTotal = xmlTaxTotal{
-		TaxAmount:   xmlAmount{Value: totalTax, CurrencyID: "EUR"},
-		TaxSubtotal: taxSubtotals,
+		TaxAmount:   xmlAmount{Value: taxTotal, CurrencyID: "EUR"},
+		TaxSubtotal: subtotals,
 	}
 
 	inv.xml.LegalMonetaryTotal = xmlMonetaryTotal{
-		LineExtensionAmount: xmlAmount{Value: sum, CurrencyID: "EUR"},
-		TaxExclusiveAmount:  xmlAmount{Value: sum, CurrencyID: "EUR"},
+		LineExtensionAmount: xmlAmount{Value: lineTotal, CurrencyID: "EUR"},
+		TaxExclusiveAmount:  xmlAmount{Value: lineTotal, CurrencyID: "EUR"},
 		TaxInclusiveAmount:  xmlAmount{Value: total, CurrencyID: "EUR"},
 		PayableAmount:       xmlAmount{Value: total, CurrencyID: "EUR"},
 	}
@@ -494,92 +480,38 @@ func (cn *CreditNote) addAttachmentFromData(encodedData, mime, filename, descrip
 }
 
 func (cn *CreditNote) addLines() {
-	sum := 0.0
-	sumTax := make(map[taxKey]float64)         // Map to handle multiple VAT rates and categories
-	taxableAmounts := make(map[taxKey]float64) // Map to track taxable amounts per VAT rate and category
-	lineTaxCategory := make(map[taxKey]string) // Map to store tax category names
-
-	// Iterate over invoice lines to calculate totals
 	for i, line := range cn.Lines {
-		lineAmountExcl := round(line.Quantity * line.Price)
-		tax := round(lineAmountExcl * line.TaxPercentage / 100)
+		lineAmount := round(line.Quantity * line.Price)
 
-		// Create composite key for rate and category
-		key := taxKey{Rate: line.TaxPercentage, CategoryID: line.TaxCategoryID}
-
-		// Update sums for taxable amounts and taxes
-		sum += lineAmountExcl
-		sumTax[key] += tax
-		taxableAmounts[key] += lineAmountExcl
-		lineTaxCategory[key] = line.TaxCategoryName
-
-		invoiceLine := xmlCreditNoteLine{
+		cn.xml.CreditNoteLines = append(cn.xml.CreditNoteLines, xmlCreditNoteLine{
 			ID:                  strconv.Itoa(i + 1),
 			CreditedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
-			LineExtensionAmount: xmlAmount{Value: lineAmountExcl, CurrencyID: "EUR"},
+			LineExtensionAmount: xmlAmount{Value: lineAmount, CurrencyID: "EUR"},
 			Item: xmlItem{
-				Name: line.Name,
-				Description: func() string {
-					if line.Description != "" {
-						return line.Description
-					}
-					return ""
-				}(),
+				Name:        line.Name,
+				Description: line.Description,
 				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:      "S",
-					Name:    "Standard rated",
-					Percent: line.TaxPercentage,
-					TaxScheme: xmlTaxScheme{
-						ID: "VAT",
-					},
+					ID:        line.TaxCategoryID,
+					Name:      line.TaxCategoryName,
+					Percent:   line.TaxPercentage,
+					TaxScheme: xmlTaxScheme{ID: "VAT"},
 				},
 			},
-			Price: xmlPrice{
-				PriceAmount: xmlAmount{
-					Value:      line.Price,
-					CurrencyID: "EUR",
-				},
-			},
-		}
-		cn.xml.CreditNoteLines = append(cn.xml.CreditNoteLines, invoiceLine)
-	}
-
-	// Calculate tax subtotals and totals
-	taxSubtotals := []xmlTaxSubtotal{}
-	totalTax := 0.0
-	for key, taxAmount := range sumTax {
-		taxableAmount := taxableAmounts[key]
-		taxSubtotals = append(taxSubtotals, xmlTaxSubtotal{
-			TaxableAmount: xmlAmount{
-				Value:      taxableAmount,
-				CurrencyID: "EUR",
-			},
-			TaxAmount: xmlAmount{
-				Value:      taxAmount,
-				CurrencyID: "EUR",
-			},
-			TaxCategory: xmlTaxCategory{
-				ID:      key.CategoryID,
-				Name:    lineTaxCategory[key],
-				Percent: key.Rate,
-				TaxScheme: xmlTaxScheme{
-					ID: "VAT",
-				},
-			},
+			Price: xmlPrice{PriceAmount: xmlAmount{Value: line.Price, CurrencyID: "EUR"}},
 		})
-		totalTax += taxAmount
 	}
 
-	total := round(sum + totalTax)
+	lineTotal, taxTotal, subtotals := calculateTaxTotals(cn.Lines)
+	total := round(lineTotal + taxTotal)
 
 	cn.xml.TaxTotal = xmlTaxTotal{
-		TaxAmount:   xmlAmount{Value: totalTax, CurrencyID: "EUR"},
-		TaxSubtotal: taxSubtotals,
+		TaxAmount:   xmlAmount{Value: taxTotal, CurrencyID: "EUR"},
+		TaxSubtotal: subtotals,
 	}
 
 	cn.xml.LegalMonetaryTotal = xmlMonetaryTotal{
-		LineExtensionAmount: xmlAmount{Value: sum, CurrencyID: "EUR"},
-		TaxExclusiveAmount:  xmlAmount{Value: sum, CurrencyID: "EUR"},
+		LineExtensionAmount: xmlAmount{Value: lineTotal, CurrencyID: "EUR"},
+		TaxExclusiveAmount:  xmlAmount{Value: lineTotal, CurrencyID: "EUR"},
 		TaxInclusiveAmount:  xmlAmount{Value: total, CurrencyID: "EUR"},
 		PayableAmount:       xmlAmount{Value: total, CurrencyID: "EUR"},
 	}
