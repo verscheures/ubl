@@ -300,9 +300,9 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 			categoryName = "Standard rated"
 		}
 
-		// For intra-community supply (K), enforce 0% tax rate
+		// For intra-community supply (K) and reverse charge (AE), enforce 0% tax rate
 		taxRate := line.TaxPercentage
-		if categoryID == "K" {
+		if categoryID == "K" || categoryID == "AE" {
 			taxRate = 0
 		}
 
@@ -359,9 +359,9 @@ func (inv *Invoice) addLines() {
 			categoryName = "Standard rated"
 		}
 
-		// For intra-community supply (K), enforce 0% tax rate
+		// For intra-community supply (K) and reverse charge (AE), enforce 0% tax rate
 		taxRate := line.TaxPercentage
-		if categoryID == "K" {
+		if categoryID == "K" || categoryID == "AE" {
 			taxRate = 0
 			tax = 0
 		}
@@ -384,6 +384,20 @@ func (inv *Invoice) addLines() {
 				taxCat.TaxExemptionReason = line.TaxExemptionReason
 			} else {
 				taxCat.TaxExemptionReason = "Intra-community supply"
+			}
+		}
+
+		// Add exemption reason for reverse charge
+		if categoryID == "AE" {
+			if line.TaxExemptionCode != "" {
+				taxCat.TaxExemptionReasonCode = line.TaxExemptionCode
+			} else {
+				taxCat.TaxExemptionReasonCode = "VATEX-EU-AE"
+			}
+			if line.TaxExemptionReason != "" {
+				taxCat.TaxExemptionReason = line.TaxExemptionReason
+			} else {
+				taxCat.TaxExemptionReason = "Reverse charge"
 			}
 		}
 
@@ -666,9 +680,9 @@ func (cn *CreditNote) addLines() {
 			categoryName = "Standard rated"
 		}
 
-		// For intra-community supply (K), enforce 0% tax rate
+		// For intra-community supply (K) and reverse charge (AE), enforce 0% tax rate
 		taxRate := line.TaxPercentage
-		if categoryID == "K" {
+		if categoryID == "K" || categoryID == "AE" {
 			taxRate = 0
 		}
 
@@ -690,6 +704,20 @@ func (cn *CreditNote) addLines() {
 				taxCat.TaxExemptionReason = line.TaxExemptionReason
 			} else {
 				taxCat.TaxExemptionReason = "Intra-community supply"
+			}
+		}
+
+		// Add exemption reason for reverse charge
+		if categoryID == "AE" {
+			if line.TaxExemptionCode != "" {
+				taxCat.TaxExemptionReasonCode = line.TaxExemptionCode
+			} else {
+				taxCat.TaxExemptionReasonCode = "VATEX-EU-AE"
+			}
+			if line.TaxExemptionReason != "" {
+				taxCat.TaxExemptionReason = line.TaxExemptionReason
+			} else {
+				taxCat.TaxExemptionReason = "Reverse charge"
 			}
 		}
 
