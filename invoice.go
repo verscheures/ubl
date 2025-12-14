@@ -334,6 +334,12 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 			taxCat.TaxExemptionReason = "Intra-community supply"
 		}
 
+		// For reverse charge (AE), add exemption reason code
+		if summary.key.CategoryID == "AE" {
+			taxCat.TaxExemptionReasonCode = "VATEX-EU-AE"
+			taxCat.TaxExemptionReason = "Reverse charge"
+		}
+
 		subtotals = append(subtotals, xmlTaxSubtotal{
 			TaxableAmount: xmlAmount{Value: summary.taxable, CurrencyID: "EUR"},
 			TaxAmount:     xmlAmount{Value: summary.tax, CurrencyID: "EUR"},
