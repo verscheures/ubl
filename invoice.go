@@ -29,6 +29,10 @@ type Invoice struct {
 	CustomerVat           string
 	CustomerPeppolID      string
 	CustomerAddress       Address
+	DeliveryAddress       *Address   // Optional: required for intra-community supply (BT-80)
+	ActualDeliveryDate    *time.Time // Optional: required for intra-community supply (BT-72)
+	InvoicePeriodStart    *time.Time // Optional: alternative to delivery date for IC supply (BG-14)
+	InvoicePeriodEnd      *time.Time // Optional: alternative to delivery date for IC supply (BG-14)
 	Iban                  string
 	Bic                   string
 	Note                  string
@@ -39,11 +43,13 @@ type Invoice struct {
 }
 
 type InvoiceLine struct {
-	Quantity        float64
-	Price           float64
-	TaxPercentage   float64
-	TaxCategoryID   string
-	TaxCategoryName string
+	Quantity           float64
+	Price              float64
+	TaxPercentage      float64
+	TaxCategoryID      string
+	TaxCategoryName    string
+	TaxExemptionReason string // Optional: required for category K (BT-120/121)
+	TaxExemptionCode   string // Optional: exemption reason code (BT-121)
 
 	Name        string
 	Description string
@@ -161,6 +167,39 @@ func (inv *Invoice) Generate() ([]byte, error) {
 		},
 	}
 
+	// Add delivery information if provided (required for intra-community supply)
+	if inv.DeliveryAddress != nil {
+		inv.xml.Delivery = &xmlDelivery{
+			ActualDeliveryDate: "",
+			DeliveryLocation: xmlDeliveryLocation{
+				Address: xmlPostalAddress{
+					StreetName: inv.DeliveryAddress.StreetName,
+					CityName:   inv.DeliveryAddress.CityName,
+					PostalZone: inv.DeliveryAddress.PostalZone,
+					Country: xmlCountry{
+						IdentificationCode: inv.DeliveryAddress.CountryCode,
+					},
+				},
+			},
+		}
+	}
+
+	// Add actual delivery date if provided
+	if inv.ActualDeliveryDate != nil {
+		if inv.xml.Delivery == nil {
+			inv.xml.Delivery = &xmlDelivery{}
+		}
+		inv.xml.Delivery.ActualDeliveryDate = inv.ActualDeliveryDate.Format("2006-01-02")
+	}
+
+	// Add invoicing period if provided (alternative to delivery date)
+	if inv.InvoicePeriodStart != nil && inv.InvoicePeriodEnd != nil {
+		inv.xml.InvoicePeriod = &xmlInvoicePeriod{
+			StartDate: inv.InvoicePeriodStart.Format("2006-01-02"),
+			EndDate:   inv.InvoicePeriodEnd.Format("2006-01-02"),
+		}
+	}
+
 	inv.xml.PaymentMeans = xmlPaymentMeans{
 		PaymentMeansCode: "1",
 		PayeeFinancialAccount: xmlFinancialAccount{
@@ -262,6 +301,11 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 			categoryName = "Standard rated"
 		}
 
+		// For intra-community supply (K), enforce 0% tax rate
+		if categoryID == "K" {
+			tax = 0
+		}
+
 		key := taxKey{Rate: line.TaxPercentage, CategoryID: categoryID}
 
 		lineTotal += lineAmount
@@ -275,15 +319,23 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 	}
 
 	for _, summary := range summaries {
+		taxCat := xmlTaxCategory{
+			ID:        summary.key.CategoryID,
+			Name:      summary.catName,
+			Percent:   summary.key.Rate,
+			TaxScheme: xmlTaxScheme{ID: "VAT"},
+		}
+
+		// For intra-community supply (K), add exemption reason code
+		if summary.key.CategoryID == "K" {
+			taxCat.TaxExemptionReasonCode = "VATEX-EU-IC"
+			taxCat.TaxExemptionReason = "Intra-community supply"
+		}
+
 		subtotals = append(subtotals, xmlTaxSubtotal{
 			TaxableAmount: xmlAmount{Value: summary.taxable, CurrencyID: "EUR"},
 			TaxAmount:     xmlAmount{Value: summary.tax, CurrencyID: "EUR"},
-			TaxCategory: xmlTaxCategory{
-				ID:        summary.key.CategoryID,
-				Name:      summary.catName,
-				Percent:   summary.key.Rate,
-				TaxScheme: xmlTaxScheme{ID: "VAT"},
-			},
+			TaxCategory:   taxCat,
 		})
 	}
 
@@ -305,20 +357,41 @@ func (inv *Invoice) addLines() {
 			categoryName = "Standard rated"
 		}
 
+		// For intra-community supply (K), enforce 0% tax rate
+		if categoryID == "K" {
+			tax = 0
+		}
+
+		taxCat := xmlTaxCategory{
+			ID:        categoryID,
+			Name:      categoryName,
+			Percent:   line.TaxPercentage,
+			TaxScheme: xmlTaxScheme{ID: "VAT"},
+		}
+
+		// Add exemption reason for intra-community supply
+		if categoryID == "K" {
+			if line.TaxExemptionCode != "" {
+				taxCat.TaxExemptionReasonCode = line.TaxExemptionCode
+			} else {
+				taxCat.TaxExemptionReasonCode = "VATEX-EU-IC"
+			}
+			if line.TaxExemptionReason != "" {
+				taxCat.TaxExemptionReason = line.TaxExemptionReason
+			} else {
+				taxCat.TaxExemptionReason = "Intra-community supply"
+			}
+		}
+
 		inv.xml.InvoiceLines = append(inv.xml.InvoiceLines, xmlInvoiceLine{
 			ID:                  strconv.Itoa(i + 1),
 			InvoicedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
 			LineExtensionAmount: xmlAmount{Value: lineAmount, CurrencyID: "EUR"},
 			TaxTotal:            xmlTaxTotal{TaxAmount: xmlAmount{Value: tax, CurrencyID: "EUR"}},
 			Item: xmlItem{
-				Name:        line.Name,
-				Description: line.Description,
-				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:        categoryID,
-					Name:      categoryName,
-					Percent:   line.TaxPercentage,
-					TaxScheme: xmlTaxScheme{ID: "VAT"},
-				},
+				Name:                  line.Name,
+				Description:           line.Description,
+				ClassifiedTaxCategory: taxCat,
 			},
 			Price: xmlPrice{PriceAmount: xmlAmount{Value: line.Price, CurrencyID: "EUR"}},
 		})
@@ -353,6 +426,10 @@ type CreditNote struct {
 	CustomerVat              string
 	CustomerPeppolID         string
 	CustomerAddress          Address
+	DeliveryAddress          *Address   // Optional: required for intra-community supply (BT-80)
+	ActualDeliveryDate       *time.Time // Optional: required for intra-community supply (BT-72)
+	InvoicePeriodStart       *time.Time // Optional: alternative to delivery date for IC supply (BG-14)
+	InvoicePeriodEnd         *time.Time // Optional: alternative to delivery date for IC supply (BG-14)
 	Iban                     string
 	Bic                      string
 	Note                     string
@@ -373,10 +450,12 @@ type xmlCreditNote struct {
 	IssueDate                   string                 `xml:"cbc:IssueDate"`
 	CreditNoteTypeCode          string                 `xml:"cbc:CreditNoteTypeCode"`
 	DocumentCurrency            string                 `xml:"cbc:DocumentCurrencyCode"`
+	InvoicePeriod               *xmlInvoicePeriod      `xml:"cac:InvoicePeriod,omitempty"`
 	OrderReference              string                 `xml:"cac:OrderReference>cbc:ID"`
 	AdditionalDocumentReference []xmlDocumentReference `xml:"cac:AdditionalDocumentReference,omitempty"`
 	SupplierParty               xmlSupplierParty       `xml:"cac:AccountingSupplierParty"`
 	CustomerParty               xmlCustomerParty       `xml:"cac:AccountingCustomerParty"`
+	Delivery                    *xmlDelivery           `xml:"cac:Delivery,omitempty"`
 	PaymentMeans                xmlPaymentMeans        `xml:"cac:PaymentMeans"`
 	PaymentTerms                xmlPaymentTerms        `xml:"cac:PaymentTerms,omitempty"`
 	TaxTotal                    xmlTaxTotal            `xml:"cac:TaxTotal"`
@@ -461,6 +540,39 @@ func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
 				},
 			},
 		},
+	}
+
+	// Add delivery information if provided (required for intra-community supply)
+	if cn.DeliveryAddress != nil {
+		cn.xml.Delivery = &xmlDelivery{
+			ActualDeliveryDate: "",
+			DeliveryLocation: xmlDeliveryLocation{
+				Address: xmlPostalAddress{
+					StreetName: cn.DeliveryAddress.StreetName,
+					CityName:   cn.DeliveryAddress.CityName,
+					PostalZone: cn.DeliveryAddress.PostalZone,
+					Country: xmlCountry{
+						IdentificationCode: cn.DeliveryAddress.CountryCode,
+					},
+				},
+			},
+		}
+	}
+
+	// Add actual delivery date if provided
+	if cn.ActualDeliveryDate != nil {
+		if cn.xml.Delivery == nil {
+			cn.xml.Delivery = &xmlDelivery{}
+		}
+		cn.xml.Delivery.ActualDeliveryDate = cn.ActualDeliveryDate.Format("2006-01-02")
+	}
+
+	// Add invoicing period if provided (alternative to delivery date)
+	if cn.InvoicePeriodStart != nil && cn.InvoicePeriodEnd != nil {
+		cn.xml.InvoicePeriod = &xmlInvoicePeriod{
+			StartDate: cn.InvoicePeriodStart.Format("2006-01-02"),
+			EndDate:   cn.InvoicePeriodEnd.Format("2006-01-02"),
+		}
 	}
 
 	cn.xml.PaymentMeans = xmlPaymentMeans{
@@ -550,19 +662,35 @@ func (cn *CreditNote) addLines() {
 			categoryName = "Standard rated"
 		}
 
+		taxCat := xmlTaxCategory{
+			ID:        categoryID,
+			Name:      categoryName,
+			Percent:   line.TaxPercentage,
+			TaxScheme: xmlTaxScheme{ID: "VAT"},
+		}
+
+		// Add exemption reason for intra-community supply
+		if categoryID == "K" {
+			if line.TaxExemptionCode != "" {
+				taxCat.TaxExemptionReasonCode = line.TaxExemptionCode
+			} else {
+				taxCat.TaxExemptionReasonCode = "VATEX-EU-IC"
+			}
+			if line.TaxExemptionReason != "" {
+				taxCat.TaxExemptionReason = line.TaxExemptionReason
+			} else {
+				taxCat.TaxExemptionReason = "Intra-community supply"
+			}
+		}
+
 		cn.xml.CreditNoteLines = append(cn.xml.CreditNoteLines, xmlCreditNoteLine{
 			ID:                  strconv.Itoa(i + 1),
 			CreditedQuantity:    xmlQuantity{Value: line.Quantity, UnitCode: "ZZ"},
 			LineExtensionAmount: xmlAmount{Value: lineAmount, CurrencyID: "EUR"},
 			Item: xmlItem{
-				Name:        line.Name,
-				Description: line.Description,
-				ClassifiedTaxCategory: xmlTaxCategory{
-					ID:        categoryID,
-					Name:      categoryName,
-					Percent:   line.TaxPercentage,
-					TaxScheme: xmlTaxScheme{ID: "VAT"},
-				},
+				Name:                  line.Name,
+				Description:           line.Description,
+				ClassifiedTaxCategory: taxCat,
 			},
 			Price: xmlPrice{PriceAmount: xmlAmount{Value: line.Price, CurrencyID: "EUR"}},
 		})

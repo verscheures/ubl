@@ -15,10 +15,12 @@ type xmlInvoice struct {
 	InvoiceTypeCode             string                 `xml:"cbc:InvoiceTypeCode"`
 	DocumentCurrency            string                 `xml:"cbc:DocumentCurrencyCode"`
 	BuyerReference              string                 `xml:"cbc:BuyerReference,omitempty"`
+	InvoicePeriod               *xmlInvoicePeriod      `xml:"cac:InvoicePeriod,omitempty"`
 	OrderReference              string                 `xml:"cac:OrderReference>cbc:ID"`
 	AdditionalDocumentReference []xmlDocumentReference `xml:"cac:AdditionalDocumentReference"`
 	SupplierParty               xmlSupplierParty       `xml:"cac:AccountingSupplierParty"`
 	CustomerParty               xmlCustomerParty       `xml:"cac:AccountingCustomerParty"`
+	Delivery                    *xmlDelivery           `xml:"cac:Delivery,omitempty"`
 	PaymentMeans                xmlPaymentMeans        `xml:"cac:PaymentMeans"`
 	PaymentTerms                xmlPaymentTerms        `xml:"cac:PaymentTerms"`
 	TaxTotal                    xmlTaxTotal            `xml:"cac:TaxTotal"`
@@ -143,10 +145,12 @@ type xmlItem struct {
 }
 
 type xmlTaxCategory struct {
-	ID        string       `xml:"cbc:ID"`
-	Name      string       `xml:"cbc:Name"`
-	Percent   float64      `xml:"cbc:Percent"`
-	TaxScheme xmlTaxScheme `xml:"cac:TaxScheme"`
+	ID                     string       `xml:"cbc:ID"`
+	Name                   string       `xml:"cbc:Name,omitempty"`
+	Percent                float64      `xml:"cbc:Percent"`
+	TaxExemptionReasonCode string       `xml:"cbc:TaxExemptionReasonCode,omitempty"`
+	TaxExemptionReason     string       `xml:"cbc:TaxExemptionReason,omitempty"`
+	TaxScheme              xmlTaxScheme `xml:"cac:TaxScheme"`
 }
 
 type xmlTaxScheme struct {
@@ -155,4 +159,18 @@ type xmlTaxScheme struct {
 
 type xmlPrice struct {
 	PriceAmount xmlAmount `xml:"cbc:PriceAmount"`
+}
+
+type xmlInvoicePeriod struct {
+	StartDate string `xml:"cbc:StartDate"`
+	EndDate   string `xml:"cbc:EndDate"`
+}
+
+type xmlDelivery struct {
+	ActualDeliveryDate string              `xml:"cbc:ActualDeliveryDate,omitempty"`
+	DeliveryLocation   xmlDeliveryLocation `xml:"cac:DeliveryLocation,omitempty"`
+}
+
+type xmlDeliveryLocation struct {
+	Address xmlPostalAddress `xml:"cac:Address"`
 }
