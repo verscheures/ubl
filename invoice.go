@@ -289,7 +289,6 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 
 	for _, line := range lines {
 		lineAmount := round(line.Quantity * line.Price)
-		tax := round(lineAmount * line.TaxPercentage / 100)
 
 		// Default to "S" (Standard rated) if not specified
 		categoryID := line.TaxCategoryID
@@ -302,11 +301,14 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 		}
 
 		// For intra-community supply (K), enforce 0% tax rate
+		taxRate := line.TaxPercentage
 		if categoryID == "K" {
-			tax = 0
+			taxRate = 0
 		}
 
-		key := taxKey{Rate: line.TaxPercentage, CategoryID: categoryID}
+		tax := round(lineAmount * taxRate / 100)
+
+		key := taxKey{Rate: taxRate, CategoryID: categoryID}
 
 		lineTotal += lineAmount
 		taxTotal += tax
@@ -358,14 +360,16 @@ func (inv *Invoice) addLines() {
 		}
 
 		// For intra-community supply (K), enforce 0% tax rate
+		taxRate := line.TaxPercentage
 		if categoryID == "K" {
+			taxRate = 0
 			tax = 0
 		}
 
 		taxCat := xmlTaxCategory{
 			ID:        categoryID,
 			Name:      categoryName,
-			Percent:   line.TaxPercentage,
+			Percent:   taxRate,
 			TaxScheme: xmlTaxScheme{ID: "VAT"},
 		}
 
@@ -662,10 +666,16 @@ func (cn *CreditNote) addLines() {
 			categoryName = "Standard rated"
 		}
 
+		// For intra-community supply (K), enforce 0% tax rate
+		taxRate := line.TaxPercentage
+		if categoryID == "K" {
+			taxRate = 0
+		}
+
 		taxCat := xmlTaxCategory{
 			ID:        categoryID,
 			Name:      categoryName,
-			Percent:   line.TaxPercentage,
+			Percent:   taxRate,
 			TaxScheme: xmlTaxScheme{ID: "VAT"},
 		}
 
