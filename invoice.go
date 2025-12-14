@@ -61,6 +61,34 @@ type Address struct {
 	CountryCode string
 }
 
+// cleanVATIdentifier ensures VAT identifier has proper ISO 3166-1 alpha-2 country prefix
+func cleanVATIdentifier(vatID, countryCode string) string {
+	// Remove any leading numeric scheme identifiers (e.g., "9925")
+	// VAT IDs should start with letters (country code)
+	for len(vatID) > 0 && vatID[0] >= '0' && vatID[0] <= '9' {
+		vatID = vatID[1:]
+	}
+
+	// If VAT ID doesn't start with country code, prepend it
+	if len(vatID) >= 2 && (vatID[0] < 'A' || vatID[0] > 'Z') {
+		return countryCode + vatID
+	}
+
+	// Extract the country prefix from VAT ID (first 2 letters)
+	if len(vatID) < 2 {
+		return countryCode + vatID
+	}
+
+	vatPrefix := vatID[0:2]
+
+	// Special case: Convert GR to EL for Greece
+	if vatPrefix == "GR" {
+		return "EL" + vatID[2:]
+	}
+
+	return vatID
+}
+
 func (inv *Invoice) Generate() ([]byte, error) {
 	inv.xml = &xmlInvoice{
 		Xmlns:            "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
@@ -76,6 +104,10 @@ func (inv *Invoice) Generate() ([]byte, error) {
 		OrderReference:   inv.ID,
 	}
 
+	// Clean and validate VAT identifiers
+	supplierVat := cleanVATIdentifier(inv.SupplierVat, inv.SupplierAddress.CountryCode)
+	customerVat := cleanVATIdentifier(inv.CustomerVat, inv.CustomerAddress.CountryCode)
+
 	inv.xml.SupplierParty = xmlSupplierParty{
 		Party: xmlParty{
 			EndpointID: xmlEndpointID{
@@ -85,7 +117,7 @@ func (inv *Invoice) Generate() ([]byte, error) {
 			PartyName:        inv.SupplierName,
 			RegistrationName: inv.SupplierName,
 			PartyTaxScheme: xmlPartyTaxScheme{
-				CompanyID: inv.SupplierVat,
+				CompanyID: supplierVat,
 				TaxScheme: xmlTaxScheme{
 					ID: "VAT",
 				},
@@ -116,7 +148,7 @@ func (inv *Invoice) Generate() ([]byte, error) {
 			PartyName:        inv.CustomerName,
 			RegistrationName: inv.CustomerName,
 			PartyTaxScheme: xmlPartyTaxScheme{
-				CompanyID: inv.CustomerVat,
+				CompanyID: customerVat,
 				TaxScheme: xmlTaxScheme{
 					ID: "VAT",
 				},
@@ -374,6 +406,10 @@ func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
 		OrderReference:     cn.ID,
 	}
 
+	// Clean and validate VAT identifiers
+	supplierVat := cleanVATIdentifier(cn.SupplierVat, cn.SupplierAddress.CountryCode)
+	customerVat := cleanVATIdentifier(cn.CustomerVat, cn.CustomerAddress.CountryCode)
+
 	cn.xml.SupplierParty = xmlSupplierParty{
 		Party: xmlParty{
 			EndpointID: xmlEndpointID{
@@ -383,7 +419,7 @@ func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
 			PartyName:        cn.SupplierName,
 			RegistrationName: cn.SupplierName,
 			PartyTaxScheme: xmlPartyTaxScheme{
-				CompanyID: cn.SupplierVat,
+				CompanyID: supplierVat,
 				TaxScheme: xmlTaxScheme{
 					ID: "VAT",
 				},
@@ -414,7 +450,7 @@ func (cn *CreditNote) GenerateCreditNote() ([]byte, error) {
 			PartyName:        cn.CustomerName,
 			RegistrationName: cn.CustomerName,
 			PartyTaxScheme: xmlPartyTaxScheme{
-				CompanyID: cn.CustomerVat,
+				CompanyID: customerVat,
 				TaxScheme: xmlTaxScheme{
 					ID: "VAT",
 				},
