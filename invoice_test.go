@@ -10,17 +10,19 @@ import (
 func TestNewInvoice(t *testing.T) {
 
 	inv := ubl.Invoice{
-		ID:           "INV-12345",
-		SupplierName: "ABC Supplies Ltd",
-		SupplierVat:  "BE0123456789",
+		ID:               "INV-12345",
+		SupplierName:     "ABC Supplies Ltd",
+		SupplierVat:      "BE0123456789",
+		SupplierPeppolID: "9925:BE0123456789",
 		SupplierAddress: ubl.Address{
 			StreetName:  "123 Supplier Street",
 			CityName:    "Supplier City",
 			PostalZone:  "12345",
 			CountryCode: "BE",
 		},
-		CustomerName: "XYZ Corp",
-		CustomerVat:  "BE9876543210",
+		CustomerName:     "XYZ Corp",
+		CustomerVat:      "BE9876543210",
+		CustomerPeppolID: "9925:BE9876543210",
 		CustomerAddress: ubl.Address{
 			StreetName:  "789 Customer Avenue",
 			CityName:    "Customer Town",
@@ -34,12 +36,37 @@ func TestNewInvoice(t *testing.T) {
 	}
 
 	inv.Lines = []ubl.InvoiceLine{
-		ubl.InvoiceLine{
+		{
 			Quantity:      10,
 			Price:         100,
-			Name:          "Product A",
-			Description:   "High-quality item",
+			Name:          "Product A - Standard rated",
+			Description:   "Standard 21% VAT item",
 			TaxPercentage: 21.0,
+			TaxCategoryID: "S",
+		},
+		{
+			Quantity:      5,
+			Price:         50,
+			Name:          "Product B - Reduced rate",
+			Description:   "Reduced 6% VAT item",
+			TaxPercentage: 6.0,
+			TaxCategoryID: "S",
+		},
+		{
+			Quantity:      2,
+			Price:         200,
+			Name:          "Product C - Zero rated",
+			Description:   "Zero rated item",
+			TaxPercentage: 0.0,
+			TaxCategoryID: "Z",
+		},
+		{
+			Quantity:      1,
+			Price:         500,
+			Name:          "Product D - Exempt",
+			Description:   "VAT exempt item",
+			TaxPercentage: 0.0,
+			TaxCategoryID: "E",
 		},
 	}
 
