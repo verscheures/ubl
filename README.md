@@ -1,7 +1,9 @@
-[![Go](https://github.com/lanart/ubl/actions/workflows/go.yml/badge.svg)](https://github.com/lanart/ubl/actions/workflows/go.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/lanart/ubl.svg)](https://pkg.go.dev/github.com/lanart/ubl)
+[![Go](https://github.com/verscheures/ubl/actions/workflows/go.yml/badge.svg)](https://github.com/verscheures/ubl/actions/workflows/go.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/verscheures/ubl.svg)](https://pkg.go.dev/github.com/verscheures/ubl)
 
-A Go package to create a UBL (UBL.BE) invoice for Peppol. 
+A Go package to create a UBL (UBL.BE) invoice for Peppol.
+
+> **Note:** This is a fork of [github.com/lanart/ubl](https://github.com/lanart/ubl) with additional features and enhancements. 
 This is a minimal implementation for the features we need.
 Feel free to send a PR if you are missing something.
 

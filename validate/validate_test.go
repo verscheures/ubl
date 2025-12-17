@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lanart/ubl/validate"
+	"github.com/verscheures/ubl/validate"
 )
 
 func TestValidate(t *testing.T) {
