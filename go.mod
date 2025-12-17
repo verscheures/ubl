@@ -1,4 +1,4 @@
-module github.com/lanart/ubl
+module github.com/verscheures/ubl
 
 go 1.23.2
 

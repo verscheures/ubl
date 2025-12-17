@@ -3,8 +3,8 @@ package ubl_test
 import (
 	"testing"
 
-	"github.com/lanart/ubl"
-	"github.com/lanart/ubl/validate"
+	"github.com/verscheures/ubl"
+	"github.com/verscheures/ubl/validate"
 )
 
 func TestNewInvoice(t *testing.T) {
