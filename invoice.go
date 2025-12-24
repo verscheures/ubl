@@ -310,14 +310,14 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 
 		key := taxKey{Rate: taxRate, CategoryID: categoryID}
 
-		lineTotal += lineAmount
-		taxTotal += tax
+		lineTotal = round(lineTotal + lineAmount)
+		taxTotal = round(taxTotal + tax)
 
 		if summaries[key] == nil {
 			summaries[key] = &taxSummary{key: key, catName: categoryName}
 		}
-		summaries[key].taxable += lineAmount
-		summaries[key].tax += tax
+		summaries[key].taxable = round(summaries[key].taxable + lineAmount)
+		summaries[key].tax = round(summaries[key].tax + tax)
 	}
 
 	for _, summary := range summaries {
@@ -341,8 +341,8 @@ func calculateTaxTotals(lines []InvoiceLine) (lineTotal float64, taxTotal float6
 		}
 
 		subtotals = append(subtotals, xmlTaxSubtotal{
-			TaxableAmount: xmlAmount{Value: summary.taxable, CurrencyID: "EUR"},
-			TaxAmount:     xmlAmount{Value: summary.tax, CurrencyID: "EUR"},
+			TaxableAmount: xmlAmount{Value: round(summary.taxable), CurrencyID: "EUR"},
+			TaxAmount:     xmlAmount{Value: round(summary.tax), CurrencyID: "EUR"},
 			TaxCategory:   taxCat,
 		})
 	}
